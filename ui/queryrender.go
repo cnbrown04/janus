@@ -56,18 +56,23 @@ func cursorDisplayRow(m *Model) int {
 	return row
 }
 
-func buildHighlightedDisplayLines(val string, innerW int) []string {
+// buildDisplayLinePairs returns one plain and one syntax-highlighted string per
+// wrapped display row (same length). Selection must use plain + selSt only:
+// wrapping selSt.Render() around ANSI-highlighted text resets SGR at token
+// boundaries, which looked like only part of a line (e.g. SELECT) was selected.
+func buildDisplayLinePairs(val string, innerW int) (plain []string, syntax []string) {
 	if innerW < 1 {
 		innerW = 1
 	}
 	logical := strings.Split(val, "\n")
-	var out []string
 	for _, ln := range logical {
 		for _, seg := range wrapRunes([]rune(ln), innerW) {
-			out = append(out, highlightSQLLine(string(seg)))
+			ps := string(seg)
+			plain = append(plain, ps)
+			syntax = append(syntax, highlightSQLLine(ps))
 		}
 	}
-	return out
+	return plain, syntax
 }
 
 func (m *Model) syncQueryScroll(innerH, totalLines int) {
@@ -115,12 +120,6 @@ func renderQueryHighlightedView(m *Model, innerW, innerH int, val string, selLo,
 		return padQueryBlock(line, innerW, innerH)
 	}
 
-	display := buildHighlightedDisplayLines(val, innerW)
-	m.syncQueryScroll(innerH, len(display))
-
-	end := min(m.queryScrollOff+innerH, len(display))
-	window := display[m.queryScrollOff:end]
-
 	selSt := lipgloss.NewStyle().Background(draw.SelectionBG).Foreground(draw.SelectionFG)
 	curRow := cursorDisplayRow(m)
 	logicalLines := strings.Split(val, "\n")
@@ -129,15 +128,27 @@ func renderQueryHighlightedView(m *Model, innerW, innerH int, val string, selLo,
 		w = 1
 	}
 
-	var rowStrs []string
-	for i, hl := range window {
-		globalRow := m.queryScrollOff + i
-		line := padANSIToWidth(hl, innerW)
+	plainLines, synLines := buildDisplayLinePairs(val, innerW)
+	m.syncQueryScroll(innerH, len(plainLines))
 
+	end := min(m.queryScrollOff+innerH, len(plainLines))
+	windowPlain := plainLines[m.queryScrollOff:end]
+	windowSyn := synLines[m.queryScrollOff:end]
+
+	var rowStrs []string
+	for i := range windowPlain {
+		globalRow := m.queryScrollOff + i
+
+		var line string
 		if selLo >= 0 && selHi >= selLo {
-			if lr := mapDisplayRowToLogicalLine(globalRow, logicalLines, w); lr >= selLo && lr <= selHi {
-				line = selSt.Render(line)
+			lr := mapDisplayRowToLogicalLine(globalRow, logicalLines, w)
+			if lr >= selLo && lr <= selHi {
+				line = selSt.Render(padLineToWidth(windowPlain[i], innerW))
+			} else {
+				line = padANSIToWidth(windowSyn[i], innerW)
 			}
+		} else {
+			line = padANSIToWidth(windowSyn[i], innerW)
 		}
 
 		if m.queryArea.Focused() && globalRow == curRow {
