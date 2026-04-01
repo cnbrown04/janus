@@ -53,6 +53,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if m.selectedPanel == PanelSchemas {
+			if m.handleSchemaTreeKey(msg) {
+				return m, nil
+			}
+		}
+
 		if m.selectedPanel == PanelQuery {
 			if modules.MatchesQueryExecute(msg, m.keys) {
 				m.runQueryExecute()
