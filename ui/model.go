@@ -9,25 +9,29 @@ import (
 	"github.com/cnbrown04/janus/bindings"
 	"github.com/cnbrown04/janus/command"
 	"github.com/cnbrown04/janus/draw"
+	"github.com/cnbrown04/janus/ui/modules"
 )
 
-// 1. Updated struct to hold the new nested layout fields
+// Model holds the full UI layout and editor state.
 type Model struct {
 	rootFlex  *flexbox.FlexBox
+	leftFlex  *flexbox.FlexBox
 	rightFlex *flexbox.FlexBox
 	rightCell *flexbox.Cell
 	keys      bindings.KeyMap
 
 	width, height int
 	cmd            command.Model
-	forceQuitArmed bool // first Ctrl+C arms; second Ctrl+C force-quits
+	forceQuitArmed bool
 
 	selectedPanel Panel
 
-	queryArea           textarea.Model
-	queryInsertMode     bool
-	querySelAnchorLine  int // logical line index; -1 = no line selection
-	queryScrollOff      int // first visible display row (soft-wrapped)
+	queryArea          textarea.Model
+	queryInsertMode    bool
+	querySelAnchorLine int
+	queryScrollOff     int
+
+	Database modules.DatabasePanelState
 }
 
 // New builds the UI model. A pointer is required so panel cells can read focus state while rendering.
@@ -38,18 +42,21 @@ func New() *Model {
 	ta.CharLimit = 0
 	ta.Focus()
 
+	dbOpts := modules.DefaultDatabaseOptions()
 	m := &Model{
 		keys:               bindings.DefaultKeyMap(),
 		cmd:                command.New(),
 		selectedPanel:      PanelQuery,
 		queryArea:          ta,
 		querySelAnchorLine: -1,
+		Database: modules.DatabasePanelState{
+			Options:  dbOpts,
+			Selected: dbOpts[0],
+		},
 	}
 
-	// Setup the Right Column (The nested FlexBox)
 	right := flexbox.New(0, 0)
 
-	// ratioY 1:4 gives Query a shorter strip; Results gets the rest.
 	queryCell := flexbox.NewCell(1, 1).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
 		innerW := w - 2
 		innerH := h - 2
@@ -59,26 +66,42 @@ func New() *Model {
 		if innerH < 1 {
 			innerH = 1
 		}
-		body := renderQueryBody(m, innerW, innerH)
+		body := modules.RenderQueryBody(&modules.QueryRenderContext{
+			TA:            &m.queryArea,
+			SelAnchorLine: m.querySelAnchorLine,
+			ScrollOff:     &m.queryScrollOff,
+		}, innerW, innerH)
 		return draw.Border("Query", body, w, h, draw.PanelBorder(m.selectedPanel == PanelQuery))
 	})
 	dataCell := flexbox.NewCell(1, 4).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
-		return draw.Border("Results", "", w, h, draw.PanelBorder(m.selectedPanel == PanelResults))
+		return modules.RenderResultsPanel(w, h, m.selectedPanel == PanelResults)
 	})
-	
+
 	right.AddRows([]*flexbox.Row{
 		right.NewRow().AddCells(queryCell),
 		right.NewRow().AddCells(dataCell),
 	})
 
-	// Setup the Root Layout
 	root := flexbox.New(0, 0)
-	
-	leftSidebarCell := flexbox.NewCell(1, 1).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
-		return draw.Border("Schemas", "", w, h, draw.PanelBorder(m.selectedPanel == PanelSchemas))
+
+	left := flexbox.New(0, 0)
+	topCell := flexbox.NewCell(1, 1).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
+		return modules.RenderDatabasePanel(w, h, &m.Database, m.selectedPanel == PanelDatabase)
 	})
-	
-	// This empty style is why lipgloss needs to be imported in this file
+	schemasCell := flexbox.NewCell(1, 17).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
+		return modules.RenderSchemasPanel(w, h, m.selectedPanel == PanelSchemas)
+	})
+	left.AddRows([]*flexbox.Row{
+		left.NewRow().AddCells(topCell),
+		left.NewRow().AddCells(schemasCell),
+	})
+
+	leftSidebarCell := flexbox.NewCell(1, 1).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
+		m.leftFlex.SetWidth(w)
+		m.leftFlex.SetHeight(h)
+		return m.leftFlex.Render()
+	})
+
 	rightContainerCell := flexbox.NewCell(6, 1).SetStyle(lipgloss.NewStyle())
 
 	root.AddRows([]*flexbox.Row{
@@ -86,6 +109,7 @@ func New() *Model {
 	})
 
 	m.rootFlex = root
+	m.leftFlex = left
 	m.rightFlex = right
 	m.rightCell = rightContainerCell
 	return m
@@ -95,15 +119,14 @@ func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
-// leaveQueryInsertMode exits INSERT without blurring the query textarea (normal mode still navigates).
 func (m *Model) leaveQueryInsertMode() {
 	m.queryInsertMode = false
 	m.querySelAnchorLine = -1
 }
 
-// blurQueryPanel clears insert/selection state and blurs the query editor (other panels or modals).
 func (m *Model) blurQueryPanel() {
 	m.leaveQueryInsertMode()
 	m.queryScrollOff = 0
 	m.queryArea.Blur()
+	m.Database.DropdownOpen = false
 }

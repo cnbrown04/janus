@@ -9,9 +9,10 @@ type KeyMap struct {
 	Command key.Binding // toggles command bar (e.g. ":")
 	Close   key.Binding // closes command bar
 
-	FocusSchemas key.Binding
-	FocusQuery   key.Binding
-	FocusResults key.Binding
+	FocusDatabase key.Binding
+	FocusSchemas    key.Binding
+	FocusQuery      key.Binding
+	FocusResults    key.Binding
 
 	QueryInsert key.Binding // i — insert mode in Query panel
 
@@ -36,6 +37,10 @@ func DefaultKeyMap() KeyMap {
 		Close: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "close"),
+		),
+		FocusDatabase: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "database"),
 		),
 		FocusSchemas: key.NewBinding(
 			key.WithKeys("s"),

@@ -1,10 +1,11 @@
 package ui
 
-// Panel identifies one of the three main content panes.
+// Panel identifies the main content panes (Database, Schemas, Query, Results).
 type Panel uint8
 
 const (
-	PanelSchemas Panel = iota
+	PanelDatabase Panel = iota
+	PanelSchemas
 	PanelQuery
 	PanelResults
 )

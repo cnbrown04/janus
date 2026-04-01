@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/cnbrown04/janus/command"
+	"github.com/cnbrown04/janus/ui/modules"
 )
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -48,8 +49,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, c
 		}
 
+		if m.selectedPanel == PanelDatabase && modules.HandleDatabaseKey(msg, m.keys, &m.Database) {
+			return m, nil
+		}
+
 		if m.selectedPanel == PanelQuery {
-			if m.matchesQueryExecute(msg) {
+			if modules.MatchesQueryExecute(msg, m.keys) {
 				m.runQueryExecute()
 				return m, nil
 			}
@@ -73,20 +78,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
-				fwd := remapShiftVerticalForTextarea(msg)
+				fwd := modules.RemapShiftVerticalForTextarea(msg)
 
 				var c tea.Cmd
 				m.queryArea, c = m.queryArea.Update(fwd)
 				return m, c
 			}
 
-			// Normal mode on Query: navigate and line-select without inserting text.
 			if key.Matches(msg, m.keys.QueryInsert) {
 				m.queryInsertMode = true
 				return m, m.queryArea.Focus()
 			}
 
-			if shouldForwardQueryNormalMode(msg) {
+			if modules.ShouldForwardQueryNormalMode(msg) {
 				switch msg.Type {
 				case tea.KeyShiftUp, tea.KeyShiftDown:
 					if m.querySelAnchorLine < 0 {
@@ -100,7 +104,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 
-				fwd := remapShiftVerticalForTextarea(msg)
+				fwd := modules.RemapShiftVerticalForTextarea(msg)
 
 				var c tea.Cmd
 				m.queryArea, c = m.queryArea.Update(fwd)
@@ -110,10 +114,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if !m.queryInsertMode {
 			switch {
+			case key.Matches(msg, m.keys.FocusDatabase):
+				m.blurQueryPanel()
+				m.selectedPanel = PanelDatabase
 			case key.Matches(msg, m.keys.FocusSchemas):
 				m.blurQueryPanel()
 				m.selectedPanel = PanelSchemas
 			case key.Matches(msg, m.keys.FocusQuery):
+				if m.selectedPanel != PanelQuery {
+					m.blurQueryPanel()
+				}
 				m.selectedPanel = PanelQuery
 				return m, m.queryArea.Focus()
 			case key.Matches(msg, m.keys.FocusResults):
