@@ -27,6 +27,7 @@ type Model struct {
 	queryArea           textarea.Model
 	queryInsertMode     bool
 	querySelAnchorLine  int // logical line index; -1 = no line selection
+	queryScrollOff      int // first visible display row (soft-wrapped)
 }
 
 // New builds the UI model. A pointer is required so panel cells can read focus state while rendering.
@@ -103,5 +104,6 @@ func (m *Model) leaveQueryInsertMode() {
 // blurQueryPanel clears insert/selection state and blurs the query editor (other panels or modals).
 func (m *Model) blurQueryPanel() {
 	m.leaveQueryInsertMode()
+	m.queryScrollOff = 0
 	m.queryArea.Blur()
 }
