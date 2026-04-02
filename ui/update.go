@@ -49,6 +49,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, c
 		}
 
+		if modules.MatchesQueryExecute(msg, m.keys) {
+			m.runQueryExecute()
+			return m, nil
+		}
+
 		if m.selectedPanel == PanelDatabase && modules.HandleDatabaseKey(msg, m.keys, &m.Database) {
 			return m, nil
 		}
@@ -59,12 +64,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if m.selectedPanel == PanelQuery {
-			if modules.MatchesQueryExecute(msg, m.keys) {
-				m.runQueryExecute()
-				return m, nil
+		if m.selectedPanel == PanelResults {
+			if handled, c := m.ResultsTable.HandleResultsTableKey(msg, m.keys); handled {
+				return m, c
 			}
+		}
 
+		if m.selectedPanel == PanelQuery {
 			if m.queryInsertMode {
 				if key.Matches(msg, m.keys.Close) {
 					m.leaveQueryInsertMode()

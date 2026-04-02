@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -18,7 +17,7 @@ var testCatalog = struct {
 	tables []string
 }{
 	schema: "test",
-	tables: []string{"one", "two", "three", "four_five", "sixs"},
+	tables: []string{"user", "tall", "wide"},
 }
 
 // SchemaTreeState holds expand/collapse and cursor for the schema sidebar (neo-tree–style navigation).
@@ -56,11 +55,6 @@ func (st *SchemaTreeState) clampCursor() {
 // SchemaCatalogName returns the stub schema name (for previews and tests).
 func SchemaCatalogName() string {
 	return testCatalog.schema
-}
-
-// FormatTablePreview is placeholder content when a table is opened from the tree.
-func FormatTablePreview(schema, table string) string {
-	return fmt.Sprintf("Table %s.%s\n\n(Not connected — preview only.)", schema, table)
 }
 
 // HandleSchemaTreeKey handles neo-tree–like navigation: ↑/k, ↓/j, Enter (toggle folder or open table).

@@ -31,9 +31,10 @@ type Model struct {
 	querySelAnchorLine int
 	queryScrollOff     int
 
-	Database    modules.DatabasePanelState
-	SchemaTree  modules.SchemaTreeState
-	ResultsBody string
+	Database     modules.DatabasePanelState
+	SchemaTree   modules.SchemaTreeState
+	ResultsBody  string
+	ResultsTable modules.ResultsTable
 }
 
 // New builds the UI model. A pointer is required so panel cells can read focus state while rendering.
@@ -76,7 +77,7 @@ func New() *Model {
 		return draw.Border("Query", body, w, h, draw.PanelBorder(m.selectedPanel == PanelQuery))
 	})
 	dataCell := flexbox.NewCell(1, 4).SetStyle(lipgloss.NewStyle()).SetContentGenerator(func(w, h int) string {
-		return modules.RenderResultsPanel(w, h, m.selectedPanel == PanelResults, m.ResultsBody)
+		return modules.RenderResultsPanel(w, h, m.selectedPanel == PanelResults, m.ResultsBody, &m.ResultsTable)
 	})
 
 	right.AddRows([]*flexbox.Row{
@@ -131,13 +132,20 @@ func (m *Model) blurQueryPanel() {
 	m.queryScrollOff = 0
 	m.queryArea.Blur()
 	m.Database.DropdownOpen = false
+	m.ResultsTable.Blur()
 }
 
 func (m *Model) handleSchemaTreeKey(msg tea.KeyMsg) bool {
 	r := modules.HandleSchemaTreeKey(msg, m.keys, &m.SchemaTree)
 	if r.OpenTable != "" {
 		m.blurQueryPanel()
-		m.ResultsBody = modules.FormatTablePreview(modules.SchemaCatalogName(), r.OpenTable)
+		if rt := modules.NewResultsTableForCatalog(r.OpenTable); rt.Active() {
+			m.ResultsTable = rt
+			m.ResultsBody = ""
+		} else {
+			m.ResultsTable = modules.ResultsTable{}
+			m.ResultsBody = modules.FormatTablePreview(modules.SchemaCatalogName(), r.OpenTable)
+		}
 		m.selectedPanel = PanelResults
 		return true
 	}
